@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: { type: "website", siteName: SITE.name, title: `${SITE.name} · ${SITE.tagline}`, description: SITE.description, url: "/" },
   twitter: { card: "summary_large_image", title: `${SITE.name} · ${SITE.tagline}`, description: SITE.description },
+  // Google Search Console ownership check
+  verification: { google: "xmW0Jn80xONVtZQAsTbtfSs2XC_kcUcOgRHdHDRtyPs" },
 };
 
 export const viewport: Viewport = { themeColor: "#F5F5F2", width: "device-width", initialScale: 1, viewportFit: "cover" };
