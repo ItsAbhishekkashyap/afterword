@@ -934,6 +934,7 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
   useEnter(ref, ".errv h1", ".errv > *");
   const noise = useRef<HTMLCanvasElement>(null);
   const offline = message.startsWith("Can't reach");
+  const blocked = /confirm you.?re not a bot|sign in to confirm|cookies-from-browser/i.test(message);
 
   useEffect(() => {
     let t = 0;
@@ -958,7 +959,9 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
 
   const [h, rest] = offline
     ? ["We can't reach", "the Afterword server."]
-    : isFile
+    : blocked
+      ? ["YouTube didn't let us", "download this one."]
+      : isFile
       ? ["We couldn't process", "that file."]
       : ["We couldn't get the audio", "from that link."];
 
@@ -979,8 +982,10 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
         </h1>
         <p>
           {offline
-            ? "The analysis server isn't running or can't be reached. Start it, then try again."
-            : isFile
+            ? "The analysis server isn't answering. On the free plan it sleeps when idle and takes about a minute to wake up, so try again shortly."
+            : blocked
+              ? "YouTube sometimes asks servers to prove they aren't a bot before it allows a download. Download the video yourself and upload the file instead; that always works."
+              : isFile
               ? "The file may be damaged or in a format FFmpeg can't read. Try exporting it again as MP4 or MP3."
               : "The video may be private, age-restricted or removed. Check that it plays in a signed-out browser window, or download it and upload the file instead."}
         </p>

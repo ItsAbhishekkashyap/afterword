@@ -33,7 +33,9 @@ export class ApiError extends Error {
 }
 
 const OFFLINE =
-  "Can't reach the Afterword server. Start it from the project folder with: python -X utf8 -m uvicorn api.main:app --port 8000";
+  process.env.NODE_ENV === "development"
+    ? "Can't reach the Afterword server. Start it from server/ with: python -X utf8 -m uvicorn api.main:app --port 8000"
+    : "Can't reach the Afterword server right now.";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;

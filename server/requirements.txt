@@ -11,8 +11,9 @@ python-multipart>=0.0.9
 python-dotenv>=1.0.0
 requests>=2.32.0
 
-# Audio / video
-yt-dlp>=2024.4.9
+# Audio / video (yt-dlp needs a JavaScript runtime for YouTube; the deno package provides one)
+yt-dlp[default]>=2025.11.12
+deno>=2.0
 
 # LLM + RAG
 langchain>=0.2.0

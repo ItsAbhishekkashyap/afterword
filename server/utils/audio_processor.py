@@ -19,6 +19,27 @@ def get_audio_duration(file_path: str) -> float:
     except ValueError:
         return 0.0
 
+def _cookie_file():
+    """
+    YouTube often asks cloud servers to "sign in to confirm you're not a bot".
+    yt-dlp gets past that with the cookies of a signed-in YouTube account (Netscape cookies.txt), from:
+      YTDLP_COOKIES       the file's contents (e.g. a Render environment variable), or
+      YTDLP_COOKIES_FILE  a path to it (e.g. a Render secret file: /etc/secrets/cookies.txt).
+    yt-dlp writes refreshed cookies back, so it gets a writable copy.
+    """
+    text = os.getenv("YTDLP_COOKIES")
+    path = os.getenv("YTDLP_COOKIES_FILE")
+    if not text and path and os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    if not text:
+        return None
+    copy = os.path.join(DOWNLOAD_DIR, ".yt_cookies.txt")
+    with open(copy, "w", encoding="utf-8") as f:
+        f.write(text.replace("\\n", "\n") if "\n" not in text else text)
+    return copy
+
+
 def download_youtube_audio(url: str) -> str:
     output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
     ydl_opts = {
@@ -33,6 +54,9 @@ def download_youtube_audio(url: str) -> str:
         ],
         "quiet": True,
     }
+    cookies = _cookie_file()
+    if cookies:
+        ydl_opts["cookiefile"] = cookies
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info).replace(".webm", ".wav").replace(".m4a", ".wav")

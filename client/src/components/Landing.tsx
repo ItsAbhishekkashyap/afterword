@@ -204,17 +204,19 @@ export function Landing() {
       const screen = $("#screen");
       const mobile = () => innerWidth <= 700;
       const startY = () => innerHeight * (mobile() ? 0.8 : 0.74) - innerHeight / 2 + screen.offsetHeight / 2;
+      /* Zoomed, the call must fit inside the window (never crop it), so captions, tiles and notes
+         stay visible on wide-but-short laptop windows. On ~16:9 windows this still fills the screen. */
+      const fit = () => Math.min(innerWidth / screen.offsetWidth, innerHeight / screen.offsetHeight);
+      const fills = () => Math.abs(innerWidth / screen.offsetWidth - innerHeight / screen.offsetHeight) < 0.03;
       const endScale = () =>
-        mobile()
-          ? Math.min((innerWidth * 0.94) / screen.offsetWidth, (innerHeight * 0.78) / screen.offsetHeight)
-          : Math.max(innerWidth / screen.offsetWidth, innerHeight / screen.offsetHeight);
+        mobile() ? Math.min((innerWidth * 0.94) / screen.offsetWidth, (innerHeight * 0.78) / screen.offsetHeight) : fills() ? fit() : fit() * 0.96;
       gsap.set(screen, { yPercent: -50, y: startY, rotateX: 24, scale: 0.9, transformPerspective: 1800, transformOrigin: "50% 50%" });
       gsap
         .timeline({ scrollTrigger: { trigger: "#hero", start: "top top", end: () => "+=" + innerHeight * 2.2, pin: true, scrub: 1, invalidateOnRefresh: true } })
         .to("#heroInner", { y: () => -innerHeight * 0.28, opacity: 0, filter: "blur(10px)", ease: "power1.in", duration: 0.45 }, 0)
         .to("#hint", { opacity: 0, duration: 0.1 }, 0)
         .to(".hero .aura", { opacity: 0.35, duration: 0.6 }, 0)
-        .to(screen, { y: 0, rotateX: 0, scale: endScale, borderRadius: () => (mobile() ? 22 : 0), ease: "power2.inOut", duration: 0.7 }, 0)
+        .to(screen, { y: 0, rotateX: 0, scale: endScale, borderRadius: () => (mobile() || !fills() ? 22 : 0), ease: "power2.inOut", duration: 0.7 }, 0)
         .to("#ainotes", { opacity: 1, duration: 0.15 }, 0.62)
         .to({}, { duration: 0.3 });
 
