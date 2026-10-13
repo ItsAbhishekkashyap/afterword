@@ -5,16 +5,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, askVideo, cancelJob, getJob, startAnalysis, type Job, type Language } from "@/lib/api";
 import { clamp, dur, getLenis, gsap, reducedMotion, revealWords, tc } from "@/lib/motion";
 import { NOT_FOUND, cleanTitle, isNone, outlineText, parseActions, parsePoints, parseSummary, words as countWords, type Point } from "@/lib/parse";
-import { SAMPLE_URL, isUrl } from "./CommandBar";
+import { ACCEPT, FORMATS, MAX_UPLOAD_MB, checkFile, fmtSize, takePendingUpload } from "@/lib/upload";
 import { copyText, SLATES, toast, useScene } from "./Shell";
 
 type Mode = "boot" | "new" | "processing" | "results" | "error";
-type Input = { url?: string; file?: File | null; language: Language };
+type Input = { file: File; language: Language };
 
-const STAGE_NAMES = ["Downloading & processing audio", "Transcribing audio", "Generating summary & title", "Extracting insights", "Building chat index"];
+const STAGE_NAMES = ["Preparing the audio", "Transcribing audio", "Generating summary & title", "Extracting insights", "Building chat index"];
 const stageDetail = (i: number, lang: Language) =>
   [
-    "yt-dlp / FFmpeg · 10-min chunks",
+    "FFmpeg · 10-min chunks",
     lang === "hinglish" ? "Sarvam AI · translated to English" : "Whisper",
     "3,000-character parts, merged",
     "Action items · decisions · questions",
@@ -53,42 +53,61 @@ export function Studio() {
   const [job, setJob] = useState<Job | null>(null);
   const [failure, setFailure] = useState<{ message: string; input?: Input } | null>(null);
   const [lastInput, setLastInput] = useState<Input | null>(null);
+  const [upload, setUpload] = useState<number | null>(null);
   const booted = useRef(false);
+  const runId = useRef(0);
 
-  /* first load: ?job=…  |  ?url=…&lang=…  |  ?src=file */
+  /** Upload the file and start the analysis; the processing screen shows upload progress meanwhile. */
+  const run = useCallback(
+    (input: Input) => {
+      const id = ++runId.current;
+      setLastInput(input);
+      setJob(null);
+      setFailure(null);
+      setUpload(0);
+      startAnalysis(input, (p) => runId.current === id && setUpload(p))
+        .then(async ({ id: jobId }) => {
+          if (runId.current !== id) return;
+          router.replace(`/studio?job=${jobId}`, { scroll: false });
+          const j = await getJob(jobId);
+          if (runId.current !== id) return;
+          setUpload(null);
+          setJob(j);
+        })
+        .catch((e: ApiError) => {
+          if (runId.current !== id) return;
+          setUpload(null);
+          setFailure({ message: e.message, input });
+          scene(SLATES.error, () => setMode("error"));
+        });
+    },
+    [router, scene],
+  );
+
+  /* first load: ?job=…  |  ?upload=1 (file handed over from the landing page) */
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
     const id = params.get("job");
-    const url = params.get("url");
-    const lang = (params.get("lang") === "hinglish" ? "hinglish" : "english") as Language;
     if (id) {
       getJob(id)
         .then((j) => {
           setJob(j);
           setMode(j.status === "done" ? "results" : j.status === "error" ? "error" : j.status === "running" ? "processing" : "new");
-          if (j.status === "error") setFailure({ message: j.error || "Something went wrong.", input: { url: j.source, language: j.language } });
+          if (j.status === "error") setFailure({ message: j.error || "Something went wrong." });
         })
         .catch((e: ApiError) => {
           setFailure({ message: e.message });
           setMode("error");
         });
-    } else if (url) {
-      const input: Input = { url, language: lang };
-      setLastInput(input);
-      setJob(null);
+      return;
+    }
+    const pending = params.get("upload") ? takePendingUpload() : null;
+    if (pending) {
       setMode("processing");
-      startAnalysis(input)
-        .then(({ id }) => {
-          router.replace(`/studio?job=${id}`, { scroll: false });
-          return getJob(id).then(setJob);
-        })
-        .catch((e: ApiError) => {
-          setFailure({ message: e.message, input });
-          setMode("error");
-        });
+      run(pending);
     } else setMode("new");
-  }, [params, router]);
+  }, [params, run]);
 
   /* poll a running job */
   useEffect(() => {
@@ -101,7 +120,7 @@ export function Studio() {
         setJob(j);
         if (j.status === "done") scene(SLATES.results, () => setMode("results"));
         else if (j.status === "error") {
-          setFailure({ message: j.error || "Something went wrong.", input: { url: j.source, language: j.language } });
+          setFailure({ message: j.error || "Something went wrong.", input: lastInput || undefined });
           scene(SLATES.error, () => setMode("error"));
         }
       } catch (e) {
@@ -115,26 +134,23 @@ export function Studio() {
       stop = true;
       clearInterval(t);
     };
-  }, [mode, job, scene]);
+  }, [mode, job, scene, lastInput]);
 
   const begin = useCallback(
-    async (input: Input) => {
-      setLastInput(input);
-      const { id } = await startAnalysis(input); // throws → caller shows the error inline
-      const j = await getJob(id);
-      await scene(SLATES.processing, () => {
-        setJob(j);
+    (input: Input) =>
+      scene(SLATES.processing, () => {
         setMode("processing");
-        router.replace(`/studio?job=${id}`, { scroll: false });
-      });
-    },
-    [router, scene],
+        run(input);
+      }),
+    [run, scene],
   );
 
   const toNew = useCallback(() => {
+    runId.current++;
     scene(SLATES.new, () => {
       setJob(null);
       setFailure(null);
+      setUpload(null);
       setMode("new");
       router.replace("/studio", { scroll: false });
     });
@@ -148,12 +164,13 @@ export function Studio() {
   return (
     <main id="studio">
       <div className="aura" aria-hidden="true" />
-      {mode === "new" && <NewView key="new" initialSrc={params.get("src") === "file" ? "file" : "link"} initial={lastInput} onStart={begin} />}
+      {mode === "new" && <NewView key="new" initial={lastInput} onStart={begin} />}
       {mode === "processing" && (
         <ProcessingView
           key="processing"
           job={job}
           input={lastInput}
+          upload={upload}
           onCancel={() => {
             if (job) cancelJob(job.id);
             toast("Analysis cancelled");
@@ -163,65 +180,31 @@ export function Studio() {
       )}
       {mode === "results" && job?.result && <ResultsView key={`results-${job.id}`} job={job} onNew={toNew} />}
       {mode === "error" && (
-        <ErrorView
-          key="error"
-          message={failure?.message || "Something went wrong."}
-          isFile={!!failure?.input?.file || (!!failure?.input?.url && !isUrl(failure.input.url))}
-          onRetry={
-            failure?.input && (failure.input.file || isUrl(failure.input.url || ""))
-              ? () => begin(failure.input!).catch((e: ApiError) => toast(e.message))
-              : undefined
-          }
-          onNew={toNew}
-          onFile={() => {
-            setLastInput(null);
-            toNew();
-            router.replace("/studio?src=file", { scroll: false });
-          }}
-        />
+        <ErrorView key="error" message={failure?.message || "Something went wrong."} onRetry={failure?.input ? () => begin(failure.input!) : undefined} onNew={toNew} />
       )}
     </main>
   );
 }
 
 /* ───────────────────────── New analysis ───────────────────────── */
-function NewView({ initialSrc, initial, onStart }: { initialSrc: "link" | "file"; initial: Input | null; onStart: (i: Input) => Promise<void> }) {
+function NewView({ initial, onStart }: { initial: Input | null; onStart: (i: Input) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEnter(ref, "#newH", ".new .crumb, .new .lead, .new .card");
-  const [src, setSrc] = useState<"link" | "file">(initialSrc);
-  const [url, setUrl] = useState(initial?.url && isUrl(initial.url) ? initial.url : "");
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(initial?.file || null);
   const [lang, setLang] = useState<Language>(initial?.language || "english");
-  const [err, setErr] = useState<React.ReactNode>(null);
-  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [over, setOver] = useState(false);
 
-  useEffect(() => setSrc(initialSrc), [initialSrc]);
+  const pick = (f: File | undefined | null) => {
+    if (!f) return;
+    const problem = checkFile(f);
+    setErr(problem);
+    setFile(problem ? null : f);
+  };
 
-  const fmtSize = (b: number) => (b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${(b / 1e6).toFixed(1)} MB`);
-
-  const analyze = async () => {
-    setErr(null);
-    if (src === "link") {
-      const v = url.trim();
-      if (!v)
-        return setErr(
-          <>
-            Paste a YouTube link first.{" "}
-            <button type="button" onClick={() => (setUrl(SAMPLE_URL), setErr(null))}>
-              Use a sample link
-            </button>
-          </>,
-        );
-      if (!isUrl(v)) return setErr("That doesn't look like a link. Paste the full address, starting with https://");
-    } else if (!file) return setErr("Choose a video or audio file first.");
-    setBusy(true);
-    try {
-      await onStart(src === "link" ? { url: url.trim(), language: lang } : { file, language: lang });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
-      setBusy(false);
-    }
+  const analyze = () => {
+    if (!file) return setErr("Choose a video or audio file first.");
+    onStart({ file, language: lang });
   };
 
   return (
@@ -235,69 +218,31 @@ function NewView({ initialSrc, initial, onStart }: { initialSrc: "link" | "file"
         <h1 className="display" id="newH">
           What should we <em>watch?</em>
         </h1>
-        <p className="lead">Paste a link or upload a file. Long videos take a few minutes; you can keep this tab open while it works.</p>
+        <p className="lead">Upload any video or recording. Long videos take a few minutes; you can keep this tab open while it works.</p>
         <div className="card paper">
-          <div className="tabs-src" role="tablist">
-            <button role="tab" aria-selected={src === "link"} onClick={() => (setSrc("link"), setErr(null))}>
-              YouTube link
-            </button>
-            <button role="tab" aria-selected={src === "file"} onClick={() => (setSrc("file"), setErr(null))}>
-              Upload a file
-            </button>
+          <div>
+            <label
+              className={`drop${over ? " over" : ""}`}
+              htmlFor="fileIn"
+              data-cursor="Drop"
+              onDragEnter={(e) => (e.preventDefault(), setOver(true))}
+              onDragOver={(e) => (e.preventDefault(), setOver(true))}
+              onDragLeave={(e) => (e.preventDefault(), setOver(false))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setOver(false);
+                pick(e.dataTransfer.files[0]);
+              }}
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+              </svg>
+              <b>{file ? file.name : "Drop a video or audio file"}</b>
+              <span>{file ? `${fmtSize(file.size)} · click to choose a different file` : `${FORMATS} and more · or click to choose`}</span>
+              <span className="limit">Maximum size {MAX_UPLOAD_MB} MB</span>
+            </label>
+            <input type="file" id="fileIn" accept={ACCEPT} className="sr" onChange={(e) => pick(e.target.files?.[0])} />
           </div>
-          {src === "link" ? (
-            <div>
-              <label className="sr" htmlFor="newUrl">
-                YouTube link
-              </label>
-              <div className="inp-big">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
-                </svg>
-                <input
-                  id="newUrl"
-                  placeholder="https://www.youtube.com/watch?v=…"
-                  autoComplete="off"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && analyze()}
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label
-                className={`drop${over ? " over" : ""}`}
-                htmlFor="fileIn"
-                data-cursor="Drop"
-                onDragEnter={(e) => (e.preventDefault(), setOver(true))}
-                onDragOver={(e) => (e.preventDefault(), setOver(true))}
-                onDragLeave={(e) => (e.preventDefault(), setOver(false))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setOver(false);
-                  const f = e.dataTransfer.files[0];
-                  if (f) (setFile(f), setErr(null));
-                }}
-              >
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-                </svg>
-                <b>{file ? file.name : "Drop a video or audio file"}</b>
-                <span>{file ? `${fmtSize(file.size)} · click to choose a different file` : "MP4, MOV, MP3, WAV, M4A · or click to choose"}</span>
-              </label>
-              <input
-                type="file"
-                id="fileIn"
-                accept="video/*,audio/*"
-                className="sr"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) (setFile(f), setErr(null));
-                }}
-              />
-            </div>
-          )}
           <div className="field-lab">
             Spoken language <span>What people speak in the video</span>
           </div>
@@ -323,19 +268,11 @@ function NewView({ initialSrc, initial, onStart }: { initialSrc: "link" | "file"
           )}
           <div className="go-row">
             <span className="hint">You&apos;ll get a title, summary, action items, decisions, open questions, the full transcript and a chat.</span>
-            <button className="go go-lg mag" data-cursor="Go" onClick={analyze} disabled={busy}>
-              {busy ? (
-                <>
-                  <span className="spin-sm" /> Starting…
-                </>
-              ) : (
-                <>
-                  Analyze video
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </>
-              )}
+            <button className="go go-lg mag" data-cursor="Go" onClick={analyze}>
+              Analyze video
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
             </button>
           </div>
         </div>
@@ -345,7 +282,7 @@ function NewView({ initialSrc, initial, onStart }: { initialSrc: "link" | "file"
 }
 
 /* ───────────────────────── Processing ───────────────────────── */
-function ProcessingView({ job, input, onCancel }: { job: Job | null; input: Input | null; onCancel: () => void }) {
+function ProcessingView({ job, input, upload, onCancel }: { job: Job | null; input: Input | null; upload: number | null; onCancel: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEnter(ref, ".proc-side h1", ".proc-screen, .proc-side > *");
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -354,7 +291,9 @@ function ProcessingView({ job, input, onCancel }: { job: Job | null; input: Inpu
   const elapsedRef = useRef<HTMLDivElement>(null);
   const lang: Language = job?.language || input?.language || "english";
   const stage = job ? job.stage : -1;
-  const source = job ? job.source : input?.file?.name || input?.url || "";
+  const source = job ? job.source : input?.file?.name || "";
+  const uploading = !job && upload !== null;
+  const pct = Math.round((upload ?? 0) * 100);
 
   /* elapsed clock + waveform, interpolated between polls */
   const base = useRef({ at: performance.now(), elapsed: 0 });
@@ -421,7 +360,7 @@ function ProcessingView({ job, input, onCancel }: { job: Job | null; input: Inpu
   }, [job?.status, job]);
 
   /* caption crossfade when the stage changes */
-  const caption = stage < 0 ? "Starting…" : stage === 1 && lang === "hinglish" ? "Translating Hinglish to English…" : CAPS[stage] || CAPS[0];
+  const caption = stage < 0 ? (uploading ? (pct >= 100 ? "Upload complete, starting…" : "Uploading your file…") : "Starting…") : stage === 1 && lang === "hinglish" ? "Translating Hinglish to English…" : CAPS[stage] || CAPS[0];
   useEffect(() => {
     const el = capRef.current;
     if (!el) return;
@@ -470,6 +409,17 @@ function ProcessingView({ job, input, onCancel }: { job: Job | null; input: Inpu
           <div className="elapsed tnum" ref={elapsedRef}>
             00:00:00:00
           </div>
+          {uploading && (
+            <div className="upload-state">
+              <div className="mono">
+                <span>Uploading {input?.file ? `· ${fmtSize(input.file.size)}` : ""}</span>
+                <b className="tnum">{pct}%</b>
+              </div>
+              <div className="upbar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )}
           <h1 className="display">
             Watching it, <em>so you don&apos;t have to.</em>
           </h1>
@@ -498,7 +448,7 @@ function ProcessingView({ job, input, onCancel }: { job: Job | null; input: Inpu
           <details className="logd" open>
             <summary className="mono">Live log ▾</summary>
             <div className="log" ref={logRef} data-lenis-prevent>
-              {(job?.logs.length ? job.logs : ["Starting…"]).map((l, i) => (
+              {(job?.logs.length ? job.logs : [uploading ? `Uploading ${input?.file?.name ?? "file"}… ${pct}%` : "Starting…"]).map((l, i) => (
                 <div key={i}>
                   <b>›</b> {l}
                 </div>
@@ -929,12 +879,12 @@ function PointBody({ p }: { p: Point }) {
 }
 
 /* ───────────────────────── Error ───────────────────────── */
-function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: string; isFile: boolean; onRetry?: () => void; onNew: () => void; onFile: () => void }) {
+function ErrorView({ message, onRetry, onNew }: { message: string; onRetry?: () => void; onNew: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEnter(ref, ".errv h1", ".errv > *");
   const noise = useRef<HTMLCanvasElement>(null);
   const offline = message.startsWith("Can't reach");
-  const blocked = /confirm you.?re not a bot|sign in to confirm|cookies-from-browser/i.test(message);
+  const tooBig = /too large|limit is/i.test(message);
 
   useEffect(() => {
     let t = 0;
@@ -957,13 +907,7 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
     return () => clearTimeout(t);
   }, []);
 
-  const [h, rest] = offline
-    ? ["We can't reach", "the Afterword server."]
-    : blocked
-      ? ["YouTube didn't let us", "download this one."]
-      : isFile
-      ? ["We couldn't process", "that file."]
-      : ["We couldn't get the audio", "from that link."];
+  const [h, rest] = offline ? ["We can't reach", "the Afterword server."] : tooBig ? ["That file is", "too large."] : ["We couldn't process", "that file."];
 
   return (
     <div className="view" ref={ref}>
@@ -983,11 +927,9 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
         <p>
           {offline
             ? "The analysis server isn't answering. On the free plan it sleeps when idle and takes about a minute to wake up, so try again shortly."
-            : blocked
-              ? "YouTube sometimes asks servers to prove they aren't a bot before it allows a download. Download the video yourself and upload the file instead; that always works."
-              : isFile
-              ? "The file may be damaged or in a format FFmpeg can't read. Try exporting it again as MP4 or MP3."
-              : "The video may be private, age-restricted or removed. Check that it plays in a signed-out browser window, or download it and upload the file instead."}
+            : tooBig
+              ? "Trim the video or export it at a lower quality, then upload it again. Audio-only files (MP3, M4A) are much smaller."
+              : "The file may be damaged or in a format FFmpeg can't read. Try exporting it again as MP4 or MP3."}
         </p>
         <pre>{message}</pre>
         <div className="res-actions">
@@ -996,14 +938,9 @@ function ErrorView({ message, isFile, onRetry, onNew, onFile }: { message: strin
               Try again
             </button>
           )}
-          <button className="ghost" onClick={isFile ? onNew : onFile}>
-            {isFile ? "Choose another file" : "Upload a file instead"}
+          <button className="ghost" onClick={onNew}>
+            Choose another file
           </button>
-          {!onRetry && (
-            <button className="ghost" onClick={onNew}>
-              New analysis
-            </button>
-          )}
         </div>
       </div>
     </div>

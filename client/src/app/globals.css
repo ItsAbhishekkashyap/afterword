@@ -532,3 +532,18 @@ details.logd summary::-webkit-details-marker{display:none}
 .sub li::before{content:"";position:absolute;left:2px;top:.72em;width:7px;height:1px;background:var(--ink-3)}
 .sum .sub li{display:block;border:0;padding:0 0 0 16px;font-size:inherit}
 .sum .sub li::before{margin:0;border-radius:0;background:var(--ink-3);width:7px;height:1px;top:.72em}
+/* upload bar */
+.cmd .pick{cursor:pointer;height:44px;min-width:0}
+.cmd .pick span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;color:var(--ink-3);transition:color .3s}
+.cmd .pick:hover span{color:var(--ink-2)}
+.cmd .pick span.picked{color:var(--ink);font-weight:500}
+.cmd.over{border-color:var(--amber);box-shadow:0 0 0 4px rgba(236,149,74,.16),0 20px 50px -28px rgba(17,17,20,.35)}
+.cmd:has(input[type=file]:focus-visible){border-color:rgba(17,17,20,.45)}
+/* upload progress */
+.upbar{height:3px;border-radius:3px;background:var(--line-2);overflow:hidden}
+.upbar i{display:block;height:100%;width:0;background:var(--glow);transition:width .3s var(--ease)}
+.drop .limit{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.hero-side .cmd-note{margin-top:12px}
+.upload-state{display:flex;flex-direction:column;gap:8px}
+.upload-state .mono{display:flex;justify-content:space-between;color:var(--ink-3)}
+.upload-state b{color:var(--ink);font-weight:500}

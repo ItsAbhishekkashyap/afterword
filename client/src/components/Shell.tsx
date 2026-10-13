@@ -42,7 +42,7 @@ function waitForUrl(href: string, timeout = 2500) {
     const t0 = performance.now();
     const check = () => {
       if (location.pathname === target.pathname || performance.now() - t0 > timeout) resolve();
-      else requestAnimationFrame(check);
+      else setTimeout(check, 30); // a timer, not rAF: rAF pauses in background tabs
     };
     check();
   });

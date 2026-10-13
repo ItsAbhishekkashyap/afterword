@@ -57,12 +57,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function startAnalysis(input: { url?: string; file?: File | null; language: Language }) {
+/** Upload a file and start an analysis. Uses XHR so the UI can show upload progress (0–1). */
+export function startAnalysis(input: { file: File; language: Language }, onProgress?: (p: number) => void) {
   const form = new FormData();
   form.set("language", input.language);
-  if (input.file) form.set("file", input.file);
-  else if (input.url) form.set("url", input.url);
-  return request<{ id: string }>("/api/analyze", { method: "POST", body: form });
+  form.set("file", input.file);
+  return new Promise<{ id: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/api/analyze`);
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onload = () => {
+      const body = xhr.response as { id?: string; detail?: unknown } | null;
+      if (xhr.status >= 200 && xhr.status < 300 && body?.id) return resolve({ id: body.id });
+      const detail = body?.detail;
+      reject(
+        new ApiError(
+          typeof detail === "string" ? detail : xhr.status === 413 ? "That file is too large for the server." : `The server answered with an error (${xhr.status}).`,
+          xhr.status,
+        ),
+      );
+    };
+    xhr.onerror = () => reject(new ApiError(OFFLINE, 0));
+    xhr.send(form);
+  });
 }
 
 export const getJob = (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`, { cache: "no-store" });

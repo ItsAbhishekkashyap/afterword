@@ -40,6 +40,8 @@ STAGES = [
     "Building chat index",
 ]
 MAX_LOG_LINES = 400
+# Largest upload accepted, in MB (keep in sync with the client's NEXT_PUBLIC_MAX_UPLOAD_MB).
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
 
 
 class Job:
@@ -227,9 +229,18 @@ async def analyze(
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
         safe = os.path.basename(file.filename).replace(" ", "_")
         path = os.path.join(DOWNLOAD_DIR, f"{uuid.uuid4().hex[:8]}_{safe}")
+        size = 0
         with open(path, "wb") as out:
             while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD_MB * 1024 * 1024:
+                    out.close()
+                    os.remove(path)
+                    raise HTTPException(413, f"That file is too large. The limit is {MAX_UPLOAD_MB} MB.")
                 out.write(chunk)
+        if size == 0:
+            os.remove(path)
+            raise HTTPException(400, "That file is empty.")
         source, label = path, file.filename
     elif url and url.strip():
         source = url.strip()
@@ -237,7 +248,7 @@ async def analyze(
             raise HTTPException(400, "That doesn't look like a link. Paste the full address, starting with https://")
         label = source
     else:
-        raise HTTPException(400, "Paste a YouTube link or choose a file first.")
+        raise HTTPException(400, "Choose a video or audio file first.")
 
     job = Job(source, language, label)
     JOBS[job.id] = job

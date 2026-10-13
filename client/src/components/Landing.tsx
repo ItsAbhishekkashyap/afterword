@@ -459,11 +459,11 @@ export function Landing() {
             </h1>
             <div className="hero-side">
               <p>
-                Paste a link or drop a recording. Get <b>the transcript, a summary, every action item and decision</b>, and a chat that answers only from what was
+                Upload any video or recording. Get <b>the transcript, a summary, every action item and decision</b>, and a chat that answers only from what was
                 said.
               </p>
               <div>
-                <CommandBar id="heroUrl" note="Have a file?" withExtras />
+                <CommandBar id="heroFile" />
               </div>
             </div>
           </div>
@@ -533,7 +533,7 @@ export function Landing() {
             <b className="tnum" data-count="7">
               7
             </b>
-            <span>things you get back from one link</span>
+            <span>things you get back from one upload</span>
           </div>
         </div>
       </section>
@@ -542,13 +542,13 @@ export function Landing() {
         <div className="sec-title">
           <div className="kicker mono">How it works</div>
           <h2 className="display" data-reveal>
-            Five passes, <em>one link.</em>
+            Five passes, <em>one upload.</em>
           </h2>
           <p>Every stage below is a real step in the pipeline, with the real numbers it uses.</p>
         </div>
         <div className="stack" id="stack">
-          <Card i={0} gc="#FFC796" no="01" kicker="Listen · yt-dlp / FFmpeg" title={<>Pull the <em>sound</em> out.</>}
-            body={<>A YouTube link is downloaded with <b>yt-dlp</b>; a file is converted with <b>FFmpeg</b>. Then the audio is cut into <b>10-minute pieces</b> so nothing is too long to handle.</>}>
+          <Card i={0} gc="#FFC796" no="01" kicker="Listen · FFmpeg" title={<>Pull the <em>sound</em> out.</>}
+            body={<>Your video or recording is converted to clean audio with <b>FFmpeg</b>. Then the audio is cut into <b>10-minute pieces</b> so nothing is too long to handle.</>}>
             <div className="v-wave" id="v1">
               <b className="v-cut" style={{ left: "33.3%" }} />
               <b className="v-cut" style={{ left: "66.6%" }} />
@@ -780,7 +780,7 @@ export function Landing() {
         <div className="sec-title">
           <div className="kicker mono">What you get</div>
           <h2 className="display" data-reveal>
-            Seven things, <em>from one link.</em>
+            Seven things, <em>from one upload.</em>
           </h2>
           <p>Title, summary, action items, decisions, open questions, the full transcript, and the chat.</p>
         </div>
@@ -865,7 +865,7 @@ export function Landing() {
         <h2 className="display" data-reveal>
           Your next meeting is <em>already recorded.</em>
         </h2>
-        <CommandBar id="finalUrl" note="Works with any public YouTube video or your own recording." />
+        <CommandBar id="finalFile" />
       </section>
 
       <footer className="foot">

@@ -31,7 +31,7 @@ Startup takes a few seconds with the default engines.
 | Method | Path | Body | Returns |
 |---|---|---|---|
 | `GET` | `/api/health` | | `{ ok }` |
-| `POST` | `/api/analyze` | form: `url` **or** `file`, `language` (`english` / `hinglish`) | `{ id }` |
+| `POST` | `/api/analyze` | form: `file` (≤ `MAX_UPLOAD_MB`, default 500), `language` (`english` / `hinglish`) | `{ id }` |
 | `GET` | `/api/jobs/{id}` | | status, current stage, stage timings, log lines, result |
 | `DELETE` | `/api/jobs/{id}` | | cancels the job |
 | `POST` | `/api/jobs/{id}/ask` | JSON `{ question }` | `{ answer }` |
