@@ -2,6 +2,16 @@
 
 FastAPI layer over the video pipeline: yt-dlp / FFmpeg → Whisper (or Sarvam AI for Hinglish) → Mistral summaries and extraction → Chroma RAG chat.
 
+## Engines
+
+| Setting | Default (light, cloud) | Local alternative |
+|---|---|---|
+| `TRANSCRIBE_ENGINE` | `groq`: Whisper large-v3 on Groq, needs `GROQ_API_KEY` | `local`: openai-whisper on this machine (`WHISPER_MODEL`, default `base`) |
+| `EMBEDDINGS` | `mistral`: `mistral-embed`, uses `MISTRAL_API_KEY` | `local`: all-MiniLM-L6-v2 via sentence-transformers |
+
+The defaults need no PyTorch and run in about 120 MB of RAM. For the local engines, `pip install -r requirements-local.txt` (about 2 GB of RAM at runtime).
+Hinglish always uses Sarvam AI. Every video gets its own Chroma collection, so the chat only searches that video.
+
 ## Run locally
 
 Requires Python 3.11 and FFmpeg on your PATH.
@@ -10,11 +20,11 @@ Requires Python 3.11 and FFmpeg on your PATH.
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # add MISTRAL_API_KEY and SARVAM_API_KEY
+cp .env.example .env            # add MISTRAL_API_KEY, GROQ_API_KEY and SARVAM_API_KEY
 python -X utf8 -m uvicorn api.main:app --reload --port 8000
 ```
 
-The first start takes about a minute while PyTorch and Whisper load.
+Startup takes a few seconds with the default engines.
 
 ## API
 

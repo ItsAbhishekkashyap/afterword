@@ -1,5 +1,8 @@
 # Afterword API (FastAPI) + the video pipeline it runs. Python 3.11.
 # FFmpeg must be installed on the machine (the Dockerfile installs it).
+# Lightweight by default: transcription runs on Groq (hosted Whisper large-v3)
+# and embeddings on Mistral, so no PyTorch is needed. For fully local models,
+# also install requirements-local.txt and set TRANSCRIBE_ENGINE=local / EMBEDDINGS=local.
 
 # API
 fastapi>=0.110
@@ -11,19 +14,10 @@ requests>=2.32.0
 # Audio / video
 yt-dlp>=2024.4.9
 
-# Speech-to-text (Whisper runs locally; Hinglish goes to Sarvam AI over HTTP)
-openai-whisper>=20231117
-torch>=2.2.0
-
 # LLM + RAG
 langchain>=0.2.0
 langchain-core>=0.2.0
-langchain-community>=0.2.0
 langchain-text-splitters>=0.2.0
 langchain-mistralai>=0.1.0
 langchain-chroma>=0.1.0
 chromadb>=0.5.0
-sentence-transformers>=3.0.0
-
-numpy>=1.26.0
-tqdm>=4.66.0

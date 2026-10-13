@@ -1,0 +1,7 @@
+# Optional: run Whisper and the embedding model on this machine instead of Groq / Mistral.
+# Needs ~2 GB of RAM. Then set TRANSCRIBE_ENGINE=local and EMBEDDINGS=local in .env.
+-r requirements.txt
+openai-whisper>=20231117
+torch>=2.2.0
+langchain-community>=0.2.0
+sentence-transformers>=3.0.0
