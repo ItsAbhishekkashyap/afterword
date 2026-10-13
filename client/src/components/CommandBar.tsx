@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { gsap } from "@/lib/motion";
-import { ACCEPT, FORMATS, MAX_UPLOAD_MB, checkFile, fmtSize, setPendingUpload } from "@/lib/upload";
+import { ACCEPT, ALLOW_LINKS, FORMATS, MAX_UPLOAD_MB, checkFile, fmtSize, setPendingUpload } from "@/lib/upload";
 import { SLATES, useScene } from "./Shell";
 import type { Language } from "@/lib/api";
 
@@ -82,6 +82,11 @@ export function CommandBar({ id, note }: { id: string; note?: string }) {
       </form>
       <div className="cmd-note">
         {err ? <span className="cmd-err">{err}</span> : <span>{note ?? `${FORMATS} and more · up to ${MAX_UPLOAD_MB} MB`}</span>}
+        {ALLOW_LINKS && (
+          <button type="button" onClick={() => go("/studio?src=link", SLATES.new)}>
+            or paste a YouTube link
+          </button>
+        )}
       </div>
     </>
   );

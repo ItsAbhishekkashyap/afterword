@@ -58,10 +58,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** Upload a file and start an analysis. Uses XHR so the UI can show upload progress (0–1). */
-export function startAnalysis(input: { file: File; language: Language }, onProgress?: (p: number) => void) {
+export function startAnalysis(input: { file?: File; url?: string; language: Language }, onProgress?: (p: number) => void) {
   const form = new FormData();
   form.set("language", input.language);
-  form.set("file", input.file);
+  if (input.file) form.set("file", input.file);
+  else if (input.url) form.set("url", input.url);
   return new Promise<{ id: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_URL}/api/analyze`);

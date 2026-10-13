@@ -547,3 +547,7 @@ details.logd summary::-webkit-details-marker{display:none}
 .upload-state{display:flex;flex-direction:column;gap:8px}
 .upload-state .mono{display:flex;justify-content:space-between;color:var(--ink-3)}
 .upload-state b{color:var(--ink);font-weight:500}
+.switch-src{margin-top:12px;font-size:13.5px;color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:4px}
+.switch-src:hover{color:var(--ink)}
+.link-mode{display:flex;flex-direction:column;align-items:flex-start}
+.link-mode .inp-big{align-self:stretch}

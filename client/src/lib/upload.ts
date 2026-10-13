@@ -1,6 +1,9 @@
 /* Upload rules shared by the landing page and the studio. */
 
 export const MAX_UPLOAD_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 500);
+/** YouTube links are only offered when the server allows them (e.g. running on your own PC). */
+export const ALLOW_LINKS = process.env.NEXT_PUBLIC_ALLOW_LINKS === "true";
+export const isUrl = (v: string) => /^https?:\/\/\S+\.\S+/.test(v.trim());
 export const ACCEPT = "video/*,audio/*,.mp4,.mov,.mkv,.webm,.avi,.mp3,.wav,.m4a,.aac,.ogg,.flac";
 export const FORMATS = "MP4, MOV, MKV, MP3, WAV, M4A";
 

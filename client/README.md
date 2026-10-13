@@ -12,6 +12,7 @@ npm run dev                  # http://localhost:3000
 |---|---|
 | `NEXT_PUBLIC_API_URL` | URL of the Afterword API (Render in production) |
 | `NEXT_PUBLIC_MAX_UPLOAD_MB` | Largest upload the site accepts, in MB (default 500; match the server's `MAX_UPLOAD_MB`) |
+| `NEXT_PUBLIC_ALLOW_LINKS` | `true` shows "or paste a YouTube link" (only with a server that has `ALLOW_LINKS=true`, e.g. on your PC) |
 | `NEXT_PUBLIC_SITE_URL` | Public URL of this site, for SEO tags (falls back to the Vercel URL) |
 
 On Vercel, set **Root Directory** to `client`.

@@ -42,6 +42,9 @@ STAGES = [
 MAX_LOG_LINES = 400
 # Largest upload accepted, in MB (keep in sync with the client's NEXT_PUBLIC_MAX_UPLOAD_MB).
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
+# YouTube/web links (downloaded with yt-dlp). Off by default: cloud servers are usually blocked by
+# YouTube. Turn on for a local server (ALLOW_LINKS=true), where your home connection is used.
+ALLOW_LINKS = os.getenv("ALLOW_LINKS", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
 class Job:
@@ -243,6 +246,8 @@ async def analyze(
             raise HTTPException(400, "That file is empty.")
         source, label = path, file.filename
     elif url and url.strip():
+        if not ALLOW_LINKS:
+            raise HTTPException(400, "Links are turned off on this server. Upload the video file instead.")
         source = url.strip()
         if not source.startswith(("http://", "https://")):
             raise HTTPException(400, "That doesn't look like a link. Paste the full address, starting with https://")

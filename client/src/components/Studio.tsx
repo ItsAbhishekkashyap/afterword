@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, askVideo, cancelJob, getJob, startAnalysis, type Job, type Language } from "@/lib/api";
 import { clamp, dur, getLenis, gsap, reducedMotion, revealWords, tc } from "@/lib/motion";
 import { NOT_FOUND, cleanTitle, isNone, outlineText, parseActions, parsePoints, parseSummary, words as countWords, type Point } from "@/lib/parse";
-import { ACCEPT, FORMATS, MAX_UPLOAD_MB, checkFile, fmtSize, takePendingUpload } from "@/lib/upload";
+import { ACCEPT, ALLOW_LINKS, FORMATS, MAX_UPLOAD_MB, checkFile, fmtSize, isUrl, takePendingUpload } from "@/lib/upload";
 import { copyText, SLATES, toast, useScene } from "./Shell";
 
 type Mode = "boot" | "new" | "processing" | "results" | "error";
-type Input = { file: File; language: Language };
+/** A file upload, or (only when links are enabled) a YouTube/web link. */
+type Input = { file?: File; url?: string; language: Language };
 
 const STAGE_NAMES = ["Preparing the audio", "Transcribing audio", "Generating summary & title", "Extracting insights", "Building chat index"];
 const stageDetail = (i: number, lang: Language) =>
@@ -164,7 +165,7 @@ export function Studio() {
   return (
     <main id="studio">
       <div className="aura" aria-hidden="true" />
-      {mode === "new" && <NewView key="new" initial={lastInput} onStart={begin} />}
+      {mode === "new" && <NewView key="new" initial={lastInput} startWithLink={params.get("src") === "link"} onStart={begin} />}
       {mode === "processing" && (
         <ProcessingView
           key="processing"
@@ -180,20 +181,28 @@ export function Studio() {
       )}
       {mode === "results" && job?.result && <ResultsView key={`results-${job.id}`} job={job} onNew={toNew} />}
       {mode === "error" && (
-        <ErrorView key="error" message={failure?.message || "Something went wrong."} onRetry={failure?.input ? () => begin(failure.input!) : undefined} onNew={toNew} />
+        <ErrorView
+          key="error"
+          message={failure?.message || "Something went wrong."}
+          isLink={!!failure?.input?.url}
+          onRetry={failure?.input ? () => begin(failure.input!) : undefined}
+          onNew={toNew}
+        />
       )}
     </main>
   );
 }
 
 /* ───────────────────────── New analysis ───────────────────────── */
-function NewView({ initial, onStart }: { initial: Input | null; onStart: (i: Input) => void }) {
+function NewView({ initial, startWithLink, onStart }: { initial: Input | null; startWithLink: boolean; onStart: (i: Input) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEnter(ref, "#newH", ".new .crumb, .new .lead, .new .card");
   const [file, setFile] = useState<File | null>(initial?.file || null);
   const [lang, setLang] = useState<Language>(initial?.language || "english");
   const [err, setErr] = useState<string | null>(null);
   const [over, setOver] = useState(false);
+  const [useLink, setUseLink] = useState(ALLOW_LINKS && (startWithLink || !!initial?.url));
+  const [url, setUrl] = useState(initial?.url || "");
 
   const pick = (f: File | undefined | null) => {
     if (!f) return;
@@ -203,6 +212,11 @@ function NewView({ initial, onStart }: { initial: Input | null; onStart: (i: Inp
   };
 
   const analyze = () => {
+    if (useLink) {
+      if (!url.trim()) return setErr("Paste a YouTube link first.");
+      if (!isUrl(url)) return setErr("That doesn't look like a link. Paste the full address, starting with https://");
+      return onStart({ url: url.trim(), language: lang });
+    }
     if (!file) return setErr("Choose a video or audio file first.");
     onStart({ file, language: lang });
   };
@@ -220,6 +234,29 @@ function NewView({ initial, onStart }: { initial: Input | null; onStart: (i: Inp
         </h1>
         <p className="lead">Upload any video or recording. Long videos take a few minutes; you can keep this tab open while it works.</p>
         <div className="card paper">
+          {useLink ? (
+            <div className="link-mode">
+              <label className="sr" htmlFor="newUrl">
+                YouTube link
+              </label>
+              <div className="inp-big">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+                </svg>
+                <input
+                  id="newUrl"
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  autoComplete="off"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && analyze()}
+                />
+              </div>
+              <button type="button" className="switch-src" onClick={() => (setUseLink(false), setErr(null))}>
+                Upload a file instead
+              </button>
+            </div>
+          ) : (
           <div>
             <label
               className={`drop${over ? " over" : ""}`}
@@ -242,7 +279,13 @@ function NewView({ initial, onStart }: { initial: Input | null; onStart: (i: Inp
               <span className="limit">Maximum size {MAX_UPLOAD_MB} MB</span>
             </label>
             <input type="file" id="fileIn" accept={ACCEPT} className="sr" onChange={(e) => pick(e.target.files?.[0])} />
+            {ALLOW_LINKS && (
+              <button type="button" className="switch-src" onClick={() => (setUseLink(true), setErr(null))}>
+                or paste a YouTube link
+              </button>
+            )}
           </div>
+          )}
           <div className="field-lab">
             Spoken language <span>What people speak in the video</span>
           </div>
@@ -291,8 +334,8 @@ function ProcessingView({ job, input, upload, onCancel }: { job: Job | null; inp
   const elapsedRef = useRef<HTMLDivElement>(null);
   const lang: Language = job?.language || input?.language || "english";
   const stage = job ? job.stage : -1;
-  const source = job ? job.source : input?.file?.name || "";
-  const uploading = !job && upload !== null;
+  const source = job ? job.source : input?.file?.name || input?.url || "";
+  const uploading = !job && upload !== null && !!input?.file;
   const pct = Math.round((upload ?? 0) * 100);
 
   /* elapsed clock + waveform, interpolated between polls */
@@ -879,7 +922,7 @@ function PointBody({ p }: { p: Point }) {
 }
 
 /* ───────────────────────── Error ───────────────────────── */
-function ErrorView({ message, onRetry, onNew }: { message: string; onRetry?: () => void; onNew: () => void }) {
+function ErrorView({ message, isLink, onRetry, onNew }: { message: string; isLink: boolean; onRetry?: () => void; onNew: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEnter(ref, ".errv h1", ".errv > *");
   const noise = useRef<HTMLCanvasElement>(null);
@@ -907,7 +950,13 @@ function ErrorView({ message, onRetry, onNew }: { message: string; onRetry?: () 
     return () => clearTimeout(t);
   }, []);
 
-  const [h, rest] = offline ? ["We can't reach", "the Afterword server."] : tooBig ? ["That file is", "too large."] : ["We couldn't process", "that file."];
+  const [h, rest] = offline
+    ? ["We can't reach", "the Afterword server."]
+    : isLink
+      ? ["We couldn't get the audio", "from that link."]
+      : tooBig
+        ? ["That file is", "too large."]
+        : ["We couldn't process", "that file."];
 
   return (
     <div className="view" ref={ref}>
@@ -927,7 +976,9 @@ function ErrorView({ message, onRetry, onNew }: { message: string; onRetry?: () 
         <p>
           {offline
             ? "The analysis server isn't answering. On the free plan it sleeps when idle and takes about a minute to wake up, so try again shortly."
-            : tooBig
+            : isLink
+              ? "The video may be private, age-restricted or removed, or YouTube may have blocked this server. Download it and upload the file instead."
+              : tooBig
               ? "Trim the video or export it at a lower quality, then upload it again. Audio-only files (MP3, M4A) are much smaller."
               : "The file may be damaged or in a format FFmpeg can't read. Try exporting it again as MP4 or MP3."}
         </p>
@@ -939,7 +990,7 @@ function ErrorView({ message, onRetry, onNew }: { message: string; onRetry?: () 
             </button>
           )}
           <button className="ghost" onClick={onNew}>
-            Choose another file
+            {isLink ? "Upload a file instead" : "Choose another file"}
           </button>
         </div>
       </div>

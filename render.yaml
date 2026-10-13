@@ -22,6 +22,9 @@ services:
         sync: false
       - key: CORS_ORIGIN_REGEX
         value: https://afterword-.*\.vercel\.app
+      # YouTube blocks cloud servers, so links stay off here (uploads only)
+      - key: ALLOW_LINKS
+        value: "false"
       - key: TRANSCRIBE_ENGINE
         value: groq
       - key: EMBEDDINGS

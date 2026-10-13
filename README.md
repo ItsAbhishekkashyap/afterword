@@ -40,6 +40,8 @@ Open http://localhost:3000.
 
 The website takes file uploads only (up to `MAX_UPLOAD_MB`, default 500 MB, set on both client and server).
 
+**YouTube links on your own PC.** YouTube blocks cloud servers, so links are off in production. Locally, set `ALLOW_LINKS=true` in `server/.env` and `NEXT_PUBLIC_ALLOW_LINKS=true` in `client/.env.local`; an "or paste a YouTube link" option then appears next to the upload box, and yt-dlp downloads through your home connection.
+
 **Client on Vercel**: New Project → import this repo → set **Root Directory** to `client` → add `NEXT_PUBLIC_API_URL` (your Render URL) and optionally `NEXT_PUBLIC_SITE_URL` → Deploy.
 
 ## Tech
