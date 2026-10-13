@@ -10,6 +10,8 @@ FastAPI layer over the video pipeline: yt-dlp / FFmpeg → Whisper (or Sarvam AI
 | `EMBEDDINGS` | `mistral`: `mistral-embed`, uses `MISTRAL_API_KEY` | `local`: all-MiniLM-L6-v2 via sentence-transformers |
 
 The defaults need no PyTorch and run in about 120 MB of RAM. For the local engines, `pip install -r requirements-local.txt` (about 2 GB of RAM at runtime).
+For YouTube links, if YouTube blocks the download (common on cloud servers), the transcript comes from the video's captions via Supadata (`SUPADATA_API_KEY`). Set `YOUTUBE_SOURCE=captions` to always use captions.
+
 Hinglish always uses Sarvam AI. Every video gets its own Chroma collection, so the chat only searches that video.
 
 ## Run locally

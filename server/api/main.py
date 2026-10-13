@@ -26,7 +26,8 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from utils.audio_processor import DOWNLOAD_DIR, process_input  # noqa: E402
+from utils.audio_processor import DOWNLOAD_DIR, is_bot_check, process_input  # noqa: E402
+from core.youtube_captions import captions_available, fetch_youtube_transcript  # noqa: E402
 from core.transcriber import transcribe_all  # noqa: E402
 from core.summarizer import summarize, generate_title  # noqa: E402
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions  # noqa: E402
@@ -40,6 +41,9 @@ STAGES = [
     "Building chat index",
 ]
 MAX_LOG_LINES = 400
+# YouTube links: "download" = audio first, captions only if YouTube blocks the server (default);
+# "captions" = always use the video's captions (fastest, uses Supadata credits).
+YOUTUBE_SOURCE = os.getenv("YOUTUBE_SOURCE", "download").lower()
 
 
 class Job:
@@ -154,11 +158,27 @@ def _run(job: Job):
     try:
         # Same order as app.py
         stage(0)
-        chunks = process_input(job.source)
+        is_link = job.source.startswith(("http://", "https://"))
+        transcript = None
+        if is_link and YOUTUBE_SOURCE == "captions" and captions_available():
+            transcript = fetch_youtube_transcript(job.source, job.language)
+        else:
+            try:
+                chunks = process_input(job.source)
+            except Exception as e:
+                # YouTube blocks many cloud servers; read the video's captions instead.
+                if is_link and is_bot_check(str(e)) and captions_available():
+                    print("YouTube blocked the audio download from this server.")
+                    transcript = fetch_youtube_transcript(job.source, job.language)
+                else:
+                    raise
         if not alive():
             return
         stage(1)
-        transcript = transcribe_all(chunks, job.language)
+        if transcript is None:
+            transcript = transcribe_all(chunks, job.language)
+        else:
+            print("Using the video's captions as the transcript.")
         if not alive():
             return
         stage(2)

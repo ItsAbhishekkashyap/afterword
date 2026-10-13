@@ -57,10 +57,31 @@ def download_youtube_audio(url: str) -> str:
     cookies = _cookie_file()
     if cookies:
         ydl_opts["cookiefile"] = cookies
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info).replace(".webm", ".wav").replace(".m4a", ".wav")
-    return filename
+    # Force IPv4 (YouTube distrusts many cloud IPv6 ranges) and, if YouTube asks us to prove
+    # we're not a bot, retry as other YouTube apps (TV, Safari, mobile web), which are often let through.
+    ydl_opts["source_address"] = "0.0.0.0"
+    attempts = [None, ["tv", "web_safari"], ["mweb"], ["android_vr"], ["ios"]]
+    last_error = None
+    for clients in attempts:
+        opts = dict(ydl_opts)
+        if clients:
+            opts["extractor_args"] = {"youtube": {"player_client": clients}}
+            print(f"  → Retrying as YouTube client: {', '.join(clients)} ...")
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info).replace(".webm", ".wav").replace(".m4a", ".wav")
+            return filename
+        except yt_dlp.utils.DownloadError as e:
+            last_error = e
+            if not is_bot_check(str(e)):
+                raise
+    raise last_error
+
+
+def is_bot_check(message: str) -> bool:
+    m = message.lower()
+    return "not a bot" in m or "sign in to confirm" in m or "cookies-from-browser" in m or "http error 403" in m
 
 def convert_to_wav(input_path: str) -> str:
     """Convert any audio/video file to WAV format using ffmpeg directly (bypassing pydub)."""

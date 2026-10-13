@@ -38,7 +38,7 @@ Open http://localhost:3000.
 
 **Server on Render (free plan)**: New → Blueprint → pick this repo. `render.yaml` builds `server/` with Docker (Python + FFmpeg; about 120 MB of RAM at idle, so it fits the free 512 MB instance). Set `MISTRAL_API_KEY`, `GROQ_API_KEY` (free at console.groq.com), `SARVAM_API_KEY` and `CORS_ORIGINS` (your Vercel URL). Free instances sleep after 15 minutes without traffic, so the first request after a pause takes about a minute.
 
-YouTube sometimes blocks downloads from cloud servers ("Sign in to confirm you're not a bot"). Uploading a file always works.
+YouTube often blocks audio downloads from cloud servers ("Sign in to confirm you're not a bot"). The server then retries as other YouTube clients and, if it's still blocked, reads the video's captions through [Supadata](https://supadata.ai) (free plan, no card). Add `SUPADATA_API_KEY` to enable that. Uploading a file always works.
 
 **Client on Vercel**: New Project → import this repo → set **Root Directory** to `client` → add `NEXT_PUBLIC_API_URL` (your Render URL) and optionally `NEXT_PUBLIC_SITE_URL` → Deploy.
 

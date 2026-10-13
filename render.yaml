@@ -22,9 +22,11 @@ services:
         sync: false
       - key: CORS_ORIGIN_REGEX
         value: https://afterword-.*\.vercel\.app
-      # Upload cookies.txt as a Secret File named cookies.txt (Environment → Secret Files)
-      - key: YTDLP_COOKIES_FILE
-        value: /etc/secrets/cookies.txt
+      # When YouTube blocks the download, captions come from Supadata (free key at supadata.ai)
+      - key: SUPADATA_API_KEY
+        sync: false
+      - key: YOUTUBE_SOURCE
+        value: download
       - key: TRANSCRIBE_ENGINE
         value: groq
       - key: EMBEDDINGS
