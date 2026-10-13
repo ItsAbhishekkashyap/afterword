@@ -1,0 +1,13 @@
+# Design prototypes are kept locally only
+design/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

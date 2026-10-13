@@ -1,0 +1,23 @@
+# Render blueprint for the Afterword API (server/). The website (client/) deploys on Vercel.
+# Pick an instance with at least 2 GB of RAM (e.g. Standard): Whisper + PyTorch don't fit in 512 MB.
+services:
+  - type: web
+    name: afterword-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /api/health
+    buildFilter:
+      paths:
+        - server/**
+    envVars:
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CORS_ORIGIN_REGEX
+        value: https://afterword-.*\.vercel\.app
+      - key: WHISPER_MODEL
+        value: base

@@ -1,0 +1,34 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Runtime data created by the pipeline
+downloades/
+downloads/
+vector_db/
+chroma/
+*.wav
+*.mp3
+*.mp4
+*.m4a
+*.webm
+
+# Design files are not part of the app
+design/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
